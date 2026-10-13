@@ -10,7 +10,7 @@ from app.matching import (
     available_matching_strategies,
     create_matching_strategy,
 )
-from app.pricing import calculate_base_fare, calculate_discount
+from app.pricing import FarePricingStrategy, ProgressiveTierPricing, calculate_discount
 from app.schemas import (
     CancellationResponse,
     Coupon,
@@ -73,6 +73,7 @@ class RideHailingService:
         *,
         matching_strategy: str | DriverMatchingStrategy | None = None,
         surge_pricing_strategy: SurgePricingStrategy | None = None,
+        fare_pricing_strategy: FarePricingStrategy | None = None,
         cancellation_policy: CancellationFeePolicy | None = None,
     ) -> None:
         self.store = store or InMemoryStore()
@@ -85,6 +86,7 @@ class RideHailingService:
             else matching_strategy
         )
         self.surge_pricing_strategy = surge_pricing_strategy or DemandSupplySurgePricing()
+        self.fare_pricing_strategy = fare_pricing_strategy or ProgressiveTierPricing()
         self.cancellation_policy = cancellation_policy or CancellationFeePolicy()
 
     def register_user(self, payload: UserCreate) -> User:
@@ -247,7 +249,9 @@ class RideHailingService:
             if ride.status != RideStatus.ONGOING:
                 raise ServiceError(409, f"Cannot end a ride with status '{ride.status.value}'")
 
-            base_fare = calculate_base_fare(distance_km, ride.pricing_vehicle_type)
+            base_fare = self.fare_pricing_strategy.calculate_base_fare(
+                distance_km, ride.pricing_vehicle_type
+            )
             surged_fare = round(base_fare * ride.surge_multiplier, 2)
             surge_amount = round(surged_fare - base_fare, 2)
             discount = calculate_discount(
@@ -356,6 +360,7 @@ class RideHailingService:
             "matching_strategy": self.matching_strategy.name,
             "available_matching_strategies": available_matching_strategies(),
             "surge_pricing_strategy": self.surge_pricing_strategy.name,
+            "fare_pricing_strategy": self.fare_pricing_strategy.name,
             "cancellation_free_window_seconds": self.cancellation_policy.free_cancellation_seconds,
             "cancellation_fee_after_grace_inr": self.cancellation_policy.fee_after_grace,
         }
