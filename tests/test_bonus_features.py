@@ -186,3 +186,33 @@ def test_invalid_matching_strategy_fails_fast() -> None:
 
 def test_cancelled_status_is_an_enum_member() -> None:
     assert RideStatus.CANCELLED.value == "cancelled"
+
+
+
+def test_custom_fare_strategy_is_injected_without_changing_booking_logic() -> None:
+    from app.schemas import VehicleType
+
+    class LaunchPromoPricing:
+        name = "launch_promo"
+
+        def calculate_base_fare(self, distance_km: float, vehicle_type: VehicleType) -> float:
+            assert distance_km > 0
+            return 42.0
+
+    client = TestClient(
+        create_app(
+            InMemoryStore(),
+            matching_strategy="nearest",
+            surge_pricing_strategy=NoSurgePricing(),
+            fare_pricing_strategy=LaunchPromoPricing(),
+        )
+    )
+    uid = user_id(client, "customer")
+    driver_id(client, "driver")
+    ride = book(client, uid)
+
+    response = client.post(f"/rides/{ride['id']}/end", json={"distance_km": 8})
+    assert response.status_code == 200, response.text
+    assert response.json()["base_fare"] == 42.0
+    assert response.json()["final_fare"] == 42.0
+    assert client.get("/system/config").json()["fare_pricing_strategy"] == "launch_promo"
