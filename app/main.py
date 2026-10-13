@@ -6,6 +6,7 @@ from fastapi import FastAPI, Query, status
 from fastapi.responses import JSONResponse
 
 from app.matching import DriverMatchingStrategy
+from app.pricing import FarePricingStrategy
 from app.schemas import (
     CancellationResponse,
     Coupon,
@@ -32,6 +33,7 @@ def create_app(
     *,
     matching_strategy: str | DriverMatchingStrategy | None = None,
     surge_pricing_strategy: SurgePricingStrategy | None = None,
+    fare_pricing_strategy: FarePricingStrategy | None = None,
     cancellation_policy: CancellationFeePolicy | None = None,
 ) -> FastAPI:
     api = FastAPI(
@@ -46,6 +48,7 @@ def create_app(
         store,
         matching_strategy=matching_strategy,
         surge_pricing_strategy=surge_pricing_strategy,
+        fare_pricing_strategy=fare_pricing_strategy,
         cancellation_policy=cancellation_policy,
     )
 
