@@ -29,3 +29,40 @@ def test_fixed_coupon_never_exceeds_fare() -> None:
 def test_negative_distance_is_rejected() -> None:
     with pytest.raises(ValueError):
         calculate_base_fare(-1, VehicleType.SEDAN)
+
+
+
+def test_pricing_strategy_supports_custom_rate_cards() -> None:
+    from app.pricing import ProgressiveTierPricing, VehiclePricing
+
+    strategy = ProgressiveTierPricing(
+        rate_cards={
+            VehicleType.SEDAN: VehiclePricing(
+                minimum_fare=5.0,
+                first_two_km_rate=3.0,
+                next_three_km_rate=2.0,
+                beyond_five_km_rate=1.0,
+            )
+        },
+        name="test_custom_tiers",
+    )
+    assert strategy.name == "test_custom_tiers"
+    assert strategy.calculate_base_fare(1.0, VehicleType.SEDAN) == 5.0
+    assert strategy.calculate_base_fare(8.0, VehicleType.SEDAN) == 15.0
+
+
+def test_pricing_strategy_rejects_vehicle_without_a_rate_card() -> None:
+    from app.pricing import ProgressiveTierPricing, VehiclePricing
+
+    strategy = ProgressiveTierPricing(
+        rate_cards={
+            VehicleType.SEDAN: VehiclePricing(
+                minimum_fare=50.0,
+                first_two_km_rate=10.0,
+                next_three_km_rate=8.0,
+                beyond_five_km_rate=5.0,
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="No pricing configured"):
+        strategy.calculate_base_fare(1.0, VehicleType.HATCHBACK)
