@@ -19,6 +19,7 @@ A FastAPI backend implementing the Plazza AI-assisted ride-hailing assignment. I
 
 - **Surge pricing:** a pluggable demand/supply multiplier based on a coarse pickup-area cell. Default multiplier tiers are 1.0x when demand/supply <= 1, 1.2x when <= 1.5, 1.5x when <= 2, and 2.0x above 2. The multiplier is snapshotted at booking so the booked ride's price does not change while in progress. `NoSurgePricing` can be injected if surge must be disabled.
 - **Configurable driver matching:** `nearest` and `highest_rated` strategies implement the same matching interface and can be selected at startup without changing booking logic. Set `RIDE_MATCHING_STRATEGY=nearest` or `RIDE_MATCHING_STRATEGY=highest_rated`, or pass `matching_strategy` to `create_app` for testing/integration.
+- **Pluggable base-fare pricing:** `FarePricingStrategy` defines the contract. `ProgressiveTierPricing` is the default and receives a vehicle rate-card mapping. Inject another implementation into `RideHailingService` or `create_app` without changing booking logic. Coupon arithmetic and surge remain separate stages.
 - **Ride cancellation:** `POST /rides/{ride_id}/cancel` applies a cancellation policy, marks the ride cancelled, records the fee, and releases the driver. The default policy is an explicit assumption: cancellation is free for the first 120 seconds after booking; after that the fee is ₹30. This policy is configurable by injecting `CancellationFeePolicy`.
 - **Concurrency safety:** a process-local reentrant lock makes driver selection/reservation atomic within one application process. It does not replace database/distributed locking across multiple workers.
 
@@ -119,13 +120,39 @@ curl -X POST http://127.0.0.1:8000/rides/RIDE_ID/cancel
 - `app/service.py` — business workflows, driver reservation, surge snapshot, cancellation and history.
 - `app/matching.py` — pluggable nearest and highest-rated driver strategies.
 - `app/surge.py` — pluggable demand/supply surge policy and no-surge policy.
-- `app/pricing.py` — vehicle rate cards, tiered fare, and coupon discount arithmetic.
+- `app/pricing.py` — `FarePricingStrategy`, progressive vehicle rate cards, tiered fare, and coupon discount arithmetic.
 - `app/store.py` — in-memory repositories and process-local lock.
 - `tests/` — unit, API, bonus feature, and concurrency tests.
 
-## AI usage note
+## AI collaboration and review record
 
-ChatGPT assistance was used to draft and revise the domain models, API surface, strategy interfaces, tests, and documentation. The implementation was checked against the assignment's mandatory requirements and bonus list, and the full test suite was run locally. Before submission, review the code and update this note with your actual tool names/prompts and any changes you personally make; the assignment expects you to explain and own every submitted line, including AI-generated code.
+ChatGPT was used as a coding assistant. This section summarizes the actual prompts/goals and review changes in this work session. It does not claim that AI output was accepted without inspection.
+
+### Prompts / goals used
+
+1. **Initial implementation goal (from the supplied assignment):** build a ride-hailing backend with user/driver registration, driver location and matching, booking/completion, tiered fares, vehicle types and free upgrade, ride histories, coupons, tests, and a README. The brief explicitly permits AI tools and says the candidate owns every line.
+2. **Bonus completion prompt:** “implement all and test it” — used to add demand/supply surge pricing, switchable driver-matching strategies, cancellation with a fee policy, and associated tests.
+3. **Rubric-alignment prompt:** “make it match” — used after a review identified gaps in the “Extensibility”, “Verification”, and “AI collaboration” evaluation criteria.
+
+### Accepted assistance
+
+- Used suggestions to separate API handlers, schemas, service workflows, storage, pricing, matching, and surge policy into separate modules.
+- Used generated test scaffolding as a starting point for API, pricing, matching, cancellation, surge, and concurrency coverage, then ran the tests and corrected test assumptions when they failed.
+- Used documentation drafts as a starting point, then made assignment assumptions and the limits of in-memory state/process-local locking explicit.
+
+### Output revised after review (specific example)
+
+The first fare implementation exposed `calculate_base_fare(distance, vehicle_type)` around a global rate-card dictionary. That passed basic fare cases but did not make the fare policy itself pluggable, so it did not fully satisfy the assignment's extensibility criterion. The revised implementation introduces the `FarePricingStrategy` protocol, a `ProgressiveTierPricing` implementation, injection through `create_app`/`RideHailingService`, runtime configuration reporting, and a custom-strategy test. Existing fare tests remain to guard the original calculations.
+
+During the test run, a new test initially expected the wrong short-trip amount for a custom rate card. The failing assertion was corrected after manually calculating the progressive fare and applying the configured minimum-fare rule. This demonstrates using test output and domain arithmetic to verify and revise AI-assisted work instead of treating generated assertions as truth.
+
+### Assumptions intentionally made explicit
+
+The PDF does not specify Hatchback prices or cancellation-fee amounts. The implementation documents an example Hatchback rate card and a demo cancellation policy (free for 120 seconds, then ₹30). These are assumptions, not requirements from Plazza, and should be stated during the demo.
+
+### Verification record
+
+The test suite was run after the pluggable pricing change: 28 tests passed, and Python compilation passed. A hosted GitHub Actions result must still be checked on the repository's Actions page before submission. Update this record if additional tools, prompts, rewrites, or manual changes are made later.
 
 ## What I would improve with more time
 
