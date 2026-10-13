@@ -19,6 +19,7 @@ class VehicleType(str, Enum):
 class RideStatus(str, Enum):
     ONGOING = "ongoing"
     COMPLETED = "completed"
+    CANCELLED = "cancelled"
 
 
 class DiscountType(str, Enum):
@@ -53,6 +54,7 @@ class DriverCreate(APIModel):
     vehicle_type: VehicleType
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
+    rating: float = Field(default=5.0, ge=0, le=5)
 
     @field_validator("name")
     @classmethod
@@ -69,6 +71,7 @@ class Driver(APIModel):
     vehicle_type: VehicleType
     latitude: float
     longitude: float
+    rating: float = Field(default=5.0, ge=0, le=5)
     available: bool = True
     created_at: datetime = Field(default_factory=utc_now)
 
@@ -122,7 +125,7 @@ class RideCreate(APIModel):
 
 class EndRideRequest(APIModel):
     # The caller supplies the measured/route distance; straight-line GPS distance is
-    # deliberately not presented as actual driving distance.
+    # deliberately not treated as the driven distance.
     distance_km: float = Field(gt=0, le=10_000)
 
 
@@ -132,25 +135,29 @@ class RideRecord(APIModel):
     driver_id: str
     requested_vehicle_type: VehicleType
     assigned_vehicle_type: VehicleType
-    # Pricing follows the requested type during the no-extra-cost upgrade case.
+    # Pricing follows the requested type for a no-extra-cost upgrade.
     pricing_vehicle_type: VehicleType
     upgraded_at_no_extra_cost: bool = False
     pickup_latitude: float
     pickup_longitude: float
     status: RideStatus = RideStatus.ONGOING
     coupon_code: str | None = None
-    # Coupon terms are snapshotted at booking so later deletion/editing cannot
-    # change an already-booked ride's fare.
+    # Coupon terms and surge multiplier are snapshotted at booking.
     coupon_discount_type: DiscountType | None = None
     coupon_discount_value: float | None = None
     coupon_max_discount: float | None = None
+    surge_multiplier: float = Field(default=1.0, ge=1.0, le=5.0)
     created_at: datetime = Field(default_factory=utc_now)
     started_at: datetime = Field(default_factory=utc_now)
     ended_at: datetime | None = None
+    cancelled_at: datetime | None = None
     distance_km: float | None = None
     base_fare: float | None = None
+    surge_amount: float = 0.0
+    surged_fare: float | None = None
     discount_amount: float | None = None
     final_fare: float | None = None
+    cancellation_fee: float = 0.0
 
 
 class RideResponse(APIModel):
@@ -165,13 +172,18 @@ class RideResponse(APIModel):
     pickup_longitude: float
     status: RideStatus
     coupon_code: str | None
+    surge_multiplier: float
     created_at: datetime
     started_at: datetime
     ended_at: datetime | None
+    cancelled_at: datetime | None
     distance_km: float | None
     base_fare: float | None
+    surge_amount: float
+    surged_fare: float | None
     discount_amount: float | None
     final_fare: float | None
+    cancellation_fee: float
 
 
 class FareBreakdown(APIModel):
@@ -179,7 +191,19 @@ class FareBreakdown(APIModel):
     distance_km: float
     vehicle_type_priced: VehicleType
     base_fare: float
+    surge_multiplier: float
+    surge_amount: float
+    surged_fare: float
     coupon_code: str | None
     discount_amount: float
     final_fare: float
     currency: Literal["INR"] = "INR"
+
+
+class CancellationResponse(APIModel):
+    ride_id: str
+    status: Literal[RideStatus.CANCELLED] = RideStatus.CANCELLED
+    cancelled_at: datetime
+    cancellation_fee: float
+    currency: Literal["INR"] = "INR"
+    policy_message: str
