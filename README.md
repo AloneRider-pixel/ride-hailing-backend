@@ -26,7 +26,7 @@ A FastAPI backend implementing the Plazza AI-assisted ride-hailing assignment. I
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\\Scripts\\activate
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 python -m pip install -e '.[dev]'
 uvicorn app.main:app --reload
 ```
@@ -64,32 +64,32 @@ The GitHub Actions workflow also runs the test suite for pushes and pull request
 Register a user:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/users \\
-  -H 'Content-Type: application/json' \\
+curl -X POST http://127.0.0.1:8000/users \
+  -H 'Content-Type: application/json' \
   -d '{"name":"Himanshu"}'
 ```
 
 Register a driver with a rating:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/drivers \\
-  -H 'Content-Type: application/json' \\
+curl -X POST http://127.0.0.1:8000/drivers \
+  -H 'Content-Type: application/json' \
   -d '{"name":"Driver One","vehicle_type":"sedan","latitude":12.9716,"longitude":77.5946,"rating":4.8}'
 ```
 
 Book a ride (use the IDs returned by registration):
 
 ```bash
-curl -X POST http://127.0.0.1:8000/rides \\
-  -H 'Content-Type: application/json' \\
+curl -X POST http://127.0.0.1:8000/rides \
+  -H 'Content-Type: application/json' \
   -d '{"user_id":"USER_ID","pickup_latitude":12.9716,"pickup_longitude":77.5946,"requested_vehicle_type":"sedan","radius_km":5}'
 ```
 
 End a ride using the measured route distance (not straight-line GPS distance):
 
 ```bash
-curl -X POST http://127.0.0.1:8000/rides/RIDE_ID/end \\
-  -H 'Content-Type: application/json' \\
+curl -X POST http://127.0.0.1:8000/rides/RIDE_ID/end \
+  -H 'Content-Type: application/json' \
   -d '{"distance_km":8}'
 ```
 
