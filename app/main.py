@@ -5,7 +5,9 @@ from typing import Annotated
 from fastapi import FastAPI, Query, status
 from fastapi.responses import JSONResponse
 
+from app.matching import DriverMatchingStrategy
 from app.schemas import (
+    CancellationResponse,
     Coupon,
     CouponCreate,
     Driver,
@@ -20,20 +22,32 @@ from app.schemas import (
     User,
     UserCreate,
 )
-from app.service import RideHailingService, ServiceError
+from app.service import CancellationFeePolicy, RideHailingService, ServiceError
 from app.store import InMemoryStore
+from app.surge import SurgePricingStrategy
 
 
-def create_app(store: InMemoryStore | None = None) -> FastAPI:
+def create_app(
+    store: InMemoryStore | None = None,
+    *,
+    matching_strategy: str | DriverMatchingStrategy | None = None,
+    surge_pricing_strategy: SurgePricingStrategy | None = None,
+    cancellation_policy: CancellationFeePolicy | None = None,
+) -> FastAPI:
     api = FastAPI(
         title="Ride-Hailing Service Backend",
         description=(
             "A compact ride-hailing backend for the Plazza AI-assisted coding assignment. "
             "Uses in-memory storage; data resets when the process restarts."
         ),
-        version="1.0.0",
+        version="1.1.0",
     )
-    api.state.ride_service = RideHailingService(store)
+    api.state.ride_service = RideHailingService(
+        store,
+        matching_strategy=matching_strategy,
+        surge_pricing_strategy=surge_pricing_strategy,
+        cancellation_policy=cancellation_policy,
+    )
 
     @api.exception_handler(ServiceError)
     async def service_error_handler(_, exc: ServiceError) -> JSONResponse:
@@ -45,6 +59,10 @@ def create_app(store: InMemoryStore | None = None) -> FastAPI:
     @api.get("/health", tags=["health"])
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @api.get("/system/config", tags=["system"], summary="Show the active configurable policies")
+    def get_system_config() -> dict[str, str | int | float | list[str]]:
+        return service().get_runtime_config()
 
     @api.post("/users", response_model=User, status_code=status.HTTP_201_CREATED, tags=["users"])
     def register_user(payload: UserCreate) -> User:
@@ -75,7 +93,7 @@ def create_app(store: InMemoryStore | None = None) -> FastAPI:
         response_model=RideResponse,
         status_code=status.HTTP_201_CREATED,
         tags=["rides"],
-        summary="Book a ride with the nearest eligible available driver",
+        summary="Book a ride with the configured matching strategy",
     )
     def book_ride(payload: RideCreate) -> RideRecord:
         return service().book_ride(payload)
@@ -84,6 +102,10 @@ def create_app(store: InMemoryStore | None = None) -> FastAPI:
     def end_ride(ride_id: str, payload: EndRideRequest) -> FareBreakdown:
         _, breakdown = service().end_ride(ride_id, payload.distance_km)
         return breakdown
+
+    @api.post("/rides/{ride_id}/cancel", response_model=CancellationResponse, tags=["rides"])
+    def cancel_ride(ride_id: str) -> CancellationResponse:
+        return service().cancel_ride(ride_id)
 
     @api.get("/users/{user_id}/rides", response_model=list[RideResponse], tags=["history"])
     def user_ride_history(
