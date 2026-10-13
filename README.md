@@ -152,7 +152,7 @@ The PDF does not specify Hatchback prices or cancellation-fee amounts. The imple
 
 ### Verification record
 
-The test suite was run after the pluggable pricing change: 28 tests passed, and Python compilation passed. A hosted GitHub Actions result must still be checked on the repository's Actions page before submission. Update this record if additional tools, prompts, rewrites, or manual changes are made later.
+The full local test suite passed after the pluggable pricing change: 28 tests passed, and Python compilation passed. Hosted GitHub Actions workflow run #10 also succeeded on commit `bfd5e06` after pinning the runner to Ubuntu 24.04; the preceding run succeeded with the Node 24-compatible action releases. See [the Actions history](https://github.com/AloneRider-pixel/ride-hailing-backend/actions). Re-run `python -m pytest -q` before submission and update this record if additional tools, prompts, rewrites, or manual changes are made later.
 
 ## What I would improve with more time
 
